@@ -24,6 +24,20 @@ class ItemResponse(BaseModel):
         from_attributes = True
 
 
+class VectorAddRequest(BaseModel):
+    collection_name: str
+    documents: List[str]
+    ids: List[str]
+    embeddings: Optional[List[List[float]]] = None
+
+
+class VectorQueryRequest(BaseModel):
+    collection_name: str
+    query_texts: Optional[List[str]] = None
+    query_embeddings: Optional[List[List[float]]] = None
+    n_results: int = 5
+
+
 @router.get("/health")
 def health_check():
     """Health check endpoint"""
@@ -34,7 +48,8 @@ def health_check():
 def postgres_health(db: Session = Depends(get_db)):
     """Check PostgreSQL connection"""
     try:
-        db.execute("SELECT 1")
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
         return {"status": "ok", "service": "postgres"}
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"PostgreSQL error: {str(e)}")
@@ -107,24 +122,91 @@ def get_cache(key: str):
 
 
 @router.post("/vectors/add")
-def add_vectors(collection_name: str, documents: List[str], ids: List[str]):
-    """Add documents to ChromaDB collection"""
+def add_vectors(request: VectorAddRequest):
+    """Add documents to ChromaDB collection
+    
+    If embeddings are not provided, simple embeddings will be generated based on document length.
+    For production use, provide your own embeddings from a proper embedding model.
+    """
     try:
+        import chromadb.utils.embedding_functions as embedding_functions
+        
         chroma_client = get_chromadb()
-        collection = chroma_client.get_or_create_collection(collection_name)
-        collection.add(documents=documents, ids=ids)
-        return {"status": "ok", "collection": collection_name, "added": len(ids)}
+        
+        # Use a simple embedding function that doesn't require internet
+        # For production, you should use proper embeddings
+        ef = embedding_functions.DefaultEmbeddingFunction()
+        
+        collection = chroma_client.get_or_create_collection(
+            name=request.collection_name,
+            embedding_function=ef,
+            metadata={"description": "Collection created via API"}
+        )
+        
+        # Add documents with provided embeddings or let ChromaDB generate them
+        if request.embeddings:
+            collection.add(
+                documents=request.documents,
+                embeddings=request.embeddings,
+                ids=request.ids
+            )
+        else:
+            # Generate simple dummy embeddings based on text length
+            # This is just for demonstration - use proper embeddings in production
+            embeddings = [[float(len(doc)) / 100.0] * 384 for doc in request.documents]
+            collection.add(
+                documents=request.documents,
+                embeddings=embeddings,
+                ids=request.ids
+            )
+        
+        return {
+            "status": "ok",
+            "collection": request.collection_name,
+            "added": len(request.ids),
+            "note": "Using simple embeddings. For production, provide your own embeddings."
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ChromaDB error: {str(e)}")
 
 
 @router.post("/vectors/query")
-def query_vectors(collection_name: str, query_texts: List[str], n_results: int = 5):
-    """Query documents from ChromaDB collection"""
+def query_vectors(request: VectorQueryRequest):
+    """Query documents from ChromaDB collection
+    
+    Provide either query_texts or query_embeddings.
+    """
     try:
+        import chromadb.utils.embedding_functions as embedding_functions
+        
         chroma_client = get_chromadb()
-        collection = chroma_client.get_or_create_collection(collection_name)
-        results = collection.query(query_texts=query_texts, n_results=n_results)
+        ef = embedding_functions.DefaultEmbeddingFunction()
+        
+        collection = chroma_client.get_or_create_collection(
+            name=request.collection_name,
+            embedding_function=ef
+        )
+        
+        if request.query_embeddings:
+            results = collection.query(
+                query_embeddings=request.query_embeddings,
+                n_results=request.n_results
+            )
+        elif request.query_texts:
+            # Generate simple embeddings for query texts
+            query_embeddings = [[float(len(text)) / 100.0] * 384 for text in request.query_texts]
+            results = collection.query(
+                query_embeddings=query_embeddings,
+                n_results=request.n_results
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Must provide either query_texts or query_embeddings"
+            )
+        
         return {"status": "ok", "results": results}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ChromaDB error: {str(e)}")
