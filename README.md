@@ -149,6 +149,14 @@ docker-compose down -v
 
 ## Testing the API
 
+### Automated test script:
+```bash
+# Run the comprehensive test script
+./test_api.sh
+```
+
+This will test all endpoints and provide a summary of passed/failed tests.
+
 ### Using curl:
 
 ```bash
@@ -169,7 +177,7 @@ curl -X POST "http://localhost:8000/api/cache/mykey?value=myvalue&ttl=60"
 # Get cache value
 curl http://localhost:8000/api/cache/mykey
 
-# Add vectors (ChromaDB)
+# Add vectors (ChromaDB) - Note: uses simple embeddings for demonstration
 curl -X POST http://localhost:8000/api/vectors/add \
   -H "Content-Type: application/json" \
   -d '{"collection_name": "test", "documents": ["Hello world", "Goodbye world"], "ids": ["1", "2"]}'
@@ -180,10 +188,18 @@ curl -X POST http://localhost:8000/api/vectors/query \
   -d '{"collection_name": "test", "query_texts": ["Hello"], "n_results": 2}'
 ```
 
+**Note on ChromaDB Embeddings**: The current implementation uses simple embeddings for demonstration purposes. For production use, you should:
+- Provide your own embeddings using the `embeddings` parameter in the add request
+- Use a proper embedding model (e.g., sentence-transformers, OpenAI embeddings, etc.)
+- The simple embeddings are based on text length and are only for testing the API functionality
+
 ### Using the interactive API documentation:
 Navigate to http://localhost:8000/docs to explore and test all endpoints interactively.
 
 ## Troubleshooting
+
+### Version warning:
+You may see a warning: `/home/runner/work/raypp/raypp/docker-compose.yml: the attribute 'version' is obsolete`. This is informational only and can be ignored - it's a deprecation notice from newer Docker Compose versions.
 
 ### Services not starting:
 ```bash
