@@ -10,6 +10,10 @@ from app.models.item import Item
 router = APIRouter()
 
 
+# Constants
+EMBEDDING_DIMENSION = 384  # Standard dimension for sentence embeddings
+
+
 class ItemCreate(BaseModel):
     name: str
     description: Optional[str] = None
@@ -29,6 +33,11 @@ class VectorAddRequest(BaseModel):
     documents: List[str]
     ids: List[str]
     embeddings: Optional[List[List[float]]] = None
+    
+    def model_post_init(self, __context):
+        """Validate that documents and ids have the same length"""
+        if len(self.documents) != len(self.ids):
+            raise ValueError(f"documents and ids must have the same length. Got {len(self.documents)} documents and {len(self.ids)} ids.")
 
 
 class VectorQueryRequest(BaseModel):
@@ -143,28 +152,26 @@ def add_vectors(request: VectorAddRequest):
             metadata={"description": "Collection created via API"}
         )
         
-        # Add documents with provided embeddings or let ChromaDB generate them
+        # Determine embeddings to use
         if request.embeddings:
-            collection.add(
-                documents=request.documents,
-                embeddings=request.embeddings,
-                ids=request.ids
-            )
+            embeddings_to_add = request.embeddings
         else:
             # Generate simple dummy embeddings based on text length
             # This is just for demonstration - use proper embeddings in production
-            embeddings = [[float(len(doc)) / 100.0] * 384 for doc in request.documents]
-            collection.add(
-                documents=request.documents,
-                embeddings=embeddings,
-                ids=request.ids
-            )
+            embeddings_to_add = [[float(len(doc)) / 100.0] * EMBEDDING_DIMENSION for doc in request.documents]
+        
+        # Add documents with embeddings
+        collection.add(
+            documents=request.documents,
+            embeddings=embeddings_to_add,
+            ids=request.ids
+        )
         
         return {
             "status": "ok",
             "collection": request.collection_name,
             "added": len(request.ids),
-            "note": "Using simple embeddings. For production, provide your own embeddings."
+            "note": "Using simple embeddings. For production, provide your own embeddings." if not request.embeddings else None
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ChromaDB error: {str(e)}")
@@ -194,7 +201,7 @@ def query_vectors(request: VectorQueryRequest):
             )
         elif request.query_texts:
             # Generate simple embeddings for query texts
-            query_embeddings = [[float(len(text)) / 100.0] * 384 for text in request.query_texts]
+            query_embeddings = [[float(len(text)) / 100.0] * EMBEDDING_DIMENSION for text in request.query_texts]
             results = collection.query(
                 query_embeddings=query_embeddings,
                 n_results=request.n_results

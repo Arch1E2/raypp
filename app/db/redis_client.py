@@ -1,17 +1,22 @@
 import redis
+import threading
 from app.core.config import settings
 
 
 class RedisClient:
     _instance = None
+    _lock = threading.Lock()
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.client = redis.Redis.from_url(
-                settings.redis_url,
-                decode_responses=True
-            )
+            with cls._lock:
+                # Double-checked locking pattern
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance.client = redis.Redis.from_url(
+                        settings.redis_url,
+                        decode_responses=True
+                    )
         return cls._instance
 
     def get(self, key: str):
