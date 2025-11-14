@@ -46,7 +46,7 @@ coverage.xml
 
 # Local env files
 .env.local
-.env.*
+.env
 
 # Jupyter
 .ipynb_checkpoints/
