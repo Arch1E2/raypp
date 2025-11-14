@@ -1,10 +1,29 @@
-fastapi==0.115.5
+# Core web
+fastapi==0.121.2
 uvicorn[standard]==0.24.0
-pydantic==2.5.0
-pydantic-settings==2.1.0
-sqlalchemy==2.0.23
+
+# Pydantic settings
+pydantic==2.5.2
+pydantic-settings==2.2.0
+
+# DB
+sqlalchemy==2.0.21
 psycopg2-binary==2.9.9
 alembic==1.12.1
-redis==5.0.1
-chromadb==0.5.20
+
+# Redis
+redis==4.6.0
+
+# Vector DB and LLM
+qdrant-client==1.7.2
+openai==1.32.0
+
+# Optional / helpers
 python-dotenv==1.0.0
+python-multipart==0.0.7
+Jinja2==3.1.2
+httpx==0.23.3
+requests==2.31.0
+
+# Tests
+pytest==7.4.2

@@ -1,89 +1,41 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: raypp-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-raypp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-raypp_password}
-      POSTGRES_DB: ${POSTGRES_DB:-raypp_db}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raypp}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - raypp-network
-
-  redis:
-    image: redis:7-alpine
-    container_name: raypp-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - raypp-network
-
-  chromadb:
-    image: chromadb/chroma:0.5.20
-    container_name: raypp-chromadb
-    ports:
-      - "8001:8000"
-    volumes:
-      - chroma_data:/chroma/chroma
-    environment:
-      - IS_PERSISTENT=TRUE
-    networks:
-      - raypp-network
-
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: raypp-app
+    build: .
     ports:
       - "8000:8000"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-raypp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-raypp_password}
-      POSTGRES_DB: ${POSTGRES_DB:-raypp_db}
       POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
       REDIS_HOST: redis
-      REDIS_PORT: 6379
-      CHROMA_HOST: chromadb
-      CHROMA_PORT: 8000
-      APP_HOST: 0.0.0.0
-      APP_PORT: 8000
+      QDRANT_HOST: qdrant
+      SKIP_TESTS: "1"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      chromadb:
-        condition: service_started
-    networks:
-      - raypp-network
+      - postgres
+      - redis
+      - qdrant
+    restart: unless-stopped
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: raypp
+      POSTGRES_PASSWORD: raypp_password
+      POSTGRES_DB: raypp_db
+    ports:
+      - "5432:5432"
     volumes:
-      - ./app:/app/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+  qdrant:
+    image: qdrant/qdrant:v1.2.2
+    ports:
+      - "6333:6333"
+    restart: unless-stopped
 
 volumes:
-  postgres_data:
-  redis_data:
-  chroma_data:
-
-networks:
-  raypp-network:
-    driver: bridge
+  pgdata:
